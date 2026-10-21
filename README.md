@@ -1,7 +1,7 @@
 # Java 8 로컬 파일 S3 API
 
 Java 표준 라이브러리 `HttpServer`만 사용하는 읽기 전용 서버입니다.
-Maven/Gradle이나 외부 Java 라이브러리 없이 `javac`로 컴파일합니다.
+Maven/Gradle이나 외부 Java 라이브러리 없이 `javac`와 `jar`로 실행 가능한 JAR를 빌드합니다.
 
 ## Docker 실행 (호스트에 Java 불필요)
 
@@ -38,7 +38,7 @@ docker run --rm --name local-s3 \
   local-s3-java8
 ```
 
-`eclipse-temurin:8-jdk`에서 컴파일하고 `eclipse-temurin:8-jre`에서 실행합니다.
+`eclipse-temurin:8-jdk`에서 JAR를 빌드하고 `eclipse-temurin:8-jre`에서 `java -jar`로 실행합니다.
 포그라운드 실행이므로 다른 터미널에서 boto3 예제를 실행합니다.
 종료는 Ctrl+C 또는 `docker stop local-s3`입니다.
 
@@ -93,11 +93,35 @@ s3.close()
 `get_object()`와 `download_fileobj()`도 사용할 수 있습니다.
 큰 파일은 boto3 기본 전송 설정에 따라 Range 요청으로 병렬 다운로드됩니다.
 
-## Java 1.8이 설치된 환경
+## 실행 가능한 JAR 빌드 및 실행
+
+빌드에는 JDK 8 이상(`javac`, `jar`), 실행에는 Java 8 이상이 필요합니다.
 
 ```sh
 sh build.sh
+java -jar build/local-s3.jar ./data 9000 127.0.0.1 ./s3.properties
+```
+
+`build/local-s3.jar`에는 실행에 필요한 모든 클래스와 `Main-Class`가 포함됩니다.
+JAR와 데이터 디렉터리, 설정 파일을 실행할 환경으로 옮겨 사용할 수 있습니다.
+인자는 데이터 루트, 포트, 바인딩 주소, 설정 파일 순서이며 데이터 루트만 필수입니다.
+`java -jar`로 직접 실행할 때 상대 경로는 현재 작업 디렉터리 기준입니다.
+인증 설정 파일은 JAR에 포함하지 않으며 외부 파일로 제공해야 합니다.
+
+기존 실행 스크립트도 JAR로 실행하며, JAR가 없으면 자동 빌드합니다.
+
+```sh
 sh run.sh ./data 9000 127.0.0.1 ./s3.properties
+```
+
+호스트에 JDK가 없다면 Docker로 빌드한 JAR를 꺼낼 수 있습니다.
+
+```sh
+docker build -t local-s3-java8 .
+mkdir -p build
+docker create --name local-s3-jar-export local-s3-java8
+docker cp local-s3-jar-export:/app/local-s3.jar build/local-s3.jar
+docker rm local-s3-jar-export
 ```
 
 `run.sh` 인자는 데이터 루트, 포트, 바인딩 주소, 설정 파일 경로 순서입니다.
