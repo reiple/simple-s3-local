@@ -11,8 +11,11 @@ continuation-token and encoding-type=url. Return S3 XML and XML errors.
 Pagination counts both objects and CommonPrefixes. Sort keys by unsigned UTF-8 bytes.
 Do not follow symlinks, allow traversal or expose files outside a bucket.
 
-Authentication is intentionally omitted; use dummy boto3 credentials and path-style
-addressing. Bind Docker's published port to loopback and mount local data read-only.
+Authentication uses header-based AWS Signature V4 with accessKey and secretKey
+loaded at startup from a required UTF-8 properties file (default: s3.properties).
+Reject invalid credentials and unsigned requests with S3 XML errors before data lookup.
+Enforce a 15-minute clock-skew window. Presigned URLs, SigV2 and session tokens
+are unsupported. Use path-style addressing. Bind Docker's published port to loopback and mount local data read-only.
 No uploads, deletes, bucket management, virtual-host addressing or general S3 parity.
 Files should remain unchanged during downloads and pagination.
 
