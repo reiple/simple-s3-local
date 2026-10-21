@@ -19,6 +19,7 @@ import java.util.concurrent.Executors;
 /** Small read-only, path-style S3 endpoint. Java 8 standard library only. */
 public final class S3Server {
     private final Path root;
+    private final S3Auth auth;
     private static final Comparator<String> UTF8_ORDER = (a, b) -> {
         byte[] x = a.getBytes(StandardCharsets.UTF_8), y = b.getBytes(StandardCharsets.UTF_8);
         for (int i = 0; i < Math.min(x.length, y.length); i++) {
@@ -28,17 +29,18 @@ public final class S3Server {
         return Integer.compare(x.length, y.length);
     };
 
-    private S3Server(Path root) throws IOException {
+    private S3Server(Path root, Path config) throws IOException {
+        this.auth = S3Auth.load(config);
         this.root = root.toRealPath();
         if (!Files.isDirectory(this.root)) throw new IOException("Data root must be a directory");
     }
 
     public static void main(String[] args) throws Exception {
-        if (args.length < 1 || args.length > 3) {
-            System.err.println("Usage: java S3Server DATA_ROOT [PORT=9000] [BIND=127.0.0.1]");
+        if (args.length < 1 || args.length > 4) {
+            System.err.println("Usage: java S3Server DATA_ROOT [PORT=9000] [BIND=127.0.0.1] [CONFIG=s3.properties]");
             System.exit(1);
         }
-        S3Server app = new S3Server(Paths.get(args[0]));
+        S3Server app = new S3Server(Paths.get(args[0]), Paths.get(args.length > 3 ? args[3] : "s3.properties"));
         int port = args.length > 1 ? Integer.parseInt(args[1]) : 9000;
         String bind = args.length > 2 ? args[2] : "127.0.0.1";
         HttpServer server = HttpServer.create(new InetSocketAddress(bind, port), 64);
@@ -58,6 +60,8 @@ public final class S3Server {
         String requestId = UUID.randomUUID().toString();
         ex.getResponseHeaders().set("x-amz-request-id", requestId);
         try {
+            try { auth.verify(ex); }
+            catch (S3Auth.AuthError error) { throw new ApiError(403, error.code, error.getMessage()); }
             String method = ex.getRequestMethod();
             if (!method.equals("GET") && !method.equals("HEAD")) {
                 ex.getResponseHeaders().set("Allow", "GET, HEAD");
@@ -268,8 +272,8 @@ public final class S3Server {
         Map<String, String> result = new HashMap<>();
         if (raw != null && !raw.isEmpty()) for (String part : raw.split("&")) {
             String[] pair = part.split("=", 2);
-            String key = decode(pair[0]);
-            if (result.put(key, pair.length > 1 ? decode(pair[1]) : "") != null) throw bad("Duplicate query parameter");
+            String key = decode(pair[0].replace("+", "%2B"));
+            if (result.put(key, pair.length > 1 ? decode(pair[1].replace("+", "%2B")) : "") != null) throw bad("Duplicate query parameter");
         }
         return result;
     }

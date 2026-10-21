@@ -1,0 +1,4 @@
+# Copy to s3.properties and set both credentials before starting the server.
+# UTF-8, simple key=value format. Keep this file outside the data root.
+accessKey=local
+secretKey=local
